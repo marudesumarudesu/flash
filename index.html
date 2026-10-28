@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FLASH ANZA PRO - フラッシュ暗算トレーナー</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono for high legibility numbers -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        board: {
+                            bg: '#0b0f17',
+                            card: '#151c28',
+                            border: '#263147',
+                            accent: '#10b981',
+                            glow: 'rgba(16, 185, 129, 0.25)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0b0f17;
+            color: #f8fafc;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Custom Digital Board Glow & Number Animations */
+        .digital-screen {
+            background: radial-gradient(circle at center, #162235 0%, #0d131f 100%);
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8), 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+        }
+
+        .flash-number {
+            text-shadow: 0 0 28px rgba(52, 211, 153, 0.45);
+            transition: transform 0.06s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.05s ease;
+        }
+
+        .flash-number-pop {
+            animation: numberPop 0.12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        @keyframes numberPop {
+            0% {
+                transform: scale(0.84);
+                opacity: 0.3;
+            }
+            60% {
+                transform: scale(1.04);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #263147;
+            height: 8px;
+            border-radius: 999px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+            border: 2px solid #ffffff;
+            transition: transform 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* Active states for keypad buttons */
+        .keypad-btn:active {
+            transform: translateY(2px) scale(0.97);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Top Header & Stats Bar -->
+    <header class="w-full border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <!-- Brand Title -->
+            <div class="flex items-center gap-3 cursor-pointer" onclick="app.showSettings()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-bolt text-slate-950 text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg tracking-tight text-white flex items-center gap-2">
+                        FLASH ANZA <span class="text-xs font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PRO</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">カスタマイズ高速フラッシュ暗算トレーナー</p>
+                </div>
+            </div>
+
+            <!-- Live Score & Sound Controls -->
+            <div class="flex items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-3 bg-slate-800/70 border border-slate-700/60 rounded-xl px-3 py-1.5 text-xs sm:text-sm">
+                    <div class="flex items-center gap-1.5" title="連続正解ストリーク">
+                        <i class="fa-solid fa-fire text-amber-400"></i>
+                        <span class="text-slate-400 hidden md:inline">連続:</span>
+                        <span id="stat-streak" class="font-mono font-bold text-white">0</span>
+                    </div>
+                    <div class="w-px h-4 bg-slate-700"></div>
+                    <div class="flex items-center gap-1.5" title="正答率 (正解/回答数)">
+                        <i class="fa-solid fa-bullseye text-emerald-400"></i>
+                        <span class="text-slate-400 hidden md:inline">正答率:</span>
+                        <span id="stat-accuracy" class="font-mono font-bold text-white">--%</span>
+                        <span id="stat-fraction" class="font-mono text-xs text-slate-400">(0/0)</span>
+                    </div>
+                </div>
+
+                <!-- Sound Toggle Button -->
+                <button id="btn-sound" onclick="app.toggleSound()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-emerald-400 transition-colors" title="サウンド ON/OFF">
+                    <i id="icon-sound" class="fa-solid fa-volume-high"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 w-full max-w-4xl mx-auto px-4 py-6 flex flex-col justify-center">
+
+        <!-- ==========================================
+             1. SETTINGS SCREEN (設定パネル)
+        =========================================== -->
+        <section id="screen-settings" class="w-full space-y-5 transition-all duration-300">
+            
+            <!-- Current Mode Summary Banner -->
+            <div class="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+                <div class="space-y-1">
+                    <div class="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders"></i> 現在のトレーニング構成
+                    </div>
+                    <div id="summary-text" class="text-lg sm:text-xl font-bold text-white tracking-tight">
+                        足し算 / 2桁 / 5口 / 0.8秒間隔
+                    </div>
+                    <p id="mode-advice" class="text-xs text-slate-400">
+                        バランスの良い標準的なフラッシュ暗算設定です。
+                    </p>
+                </div>
+                <button onclick="app.startGame()" class="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-base shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all transform active:scale-95 flex items-center justify-center gap-2 shrink-0">
+                    <i class="fa-solid fa-play"></i>
+                    <span>スタート (Space / Enter)</span>
+                </button>
+            </div>
+
+            <!-- Settings Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                <!-- 1. 計算モード選択 -->
+                <div class="bg-board-card border border-board-border rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-calculator text-emerald-400"></i>
+                            計算モード
+                        </label>
+                        <span class="text-xs text-slate-400">演算タイプを選択</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2.5">
+                        <button type="button" onclick="app.setMode('add')" id="mode-add" class="mode-btn flex flex-col items-center justify-center p-3.5 rounded-xl border-2 transition-all">
+                            <span class="text-2xl font-mono font-extrabold mb-1 text-emerald-400">＋</span>
+                            <span class="text-sm font-bold">足し算</span>
+                            <span class="text-[11px] text-slate-400 mt-0.5">加算のみ</span>
+                        </button>
+
+                        <button type="button" onclick="app.setMode('mul')" id="mode-mul" class="mode-btn flex flex-col items-center justify-center p-3.5 rounded-xl border-2 transition-all">
+                            <span class="text-2xl font-mono font-extrabold mb-1 text-amber-400">×</span>
+                            <span class="text-sm font-bold">掛け算</span>
+                            <span class="text-[11px] text-slate-400 mt-0.5">連続乗算</span>
+                        </button>
+
+                        <button type="button" onclick="app.setMode('addsub')" id="mode-addsub" class="mode-btn flex flex-col items-center justify-center p-3.5 rounded-xl border-2 transition-all">
+                            <span class="text-2xl font-mono font-extrabold mb-1 text-sky-400">±</span>
+                            <span class="text-sm font-bold">加減算</span>
+                            <span class="text-[11px] text-slate-400 mt-0.5">マイナス防止</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. 桁数選択 -->
+                <div class="bg-board-card border border-board-border rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-hashtag text-emerald-400"></i>
+                            桁数（ケタ）
+                        </label>
+                        <span id="digits-hint" class="text-xs text-slate-400">10 〜 99 の数字</span>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-2.5">
+                        <button type="button" onclick="app.setDigits(1)" id="digit-1" class="digit-btn py-3.5 rounded-xl border-2 font-mono font-bold transition-all flex flex-col items-center">
+                            <span class="text-lg">1桁</span>
+                            <span class="text-[10px] text-slate-400 font-sans">1〜9</span>
+                        </button>
+                        <button type="button" onclick="app.setDigits(2)" id="digit-2" class="digit-btn py-3.5 rounded-xl border-2 font-mono font-bold transition-all flex flex-col items-center">
+                            <span class="text-lg">2桁</span>
+                            <span class="text-[10px] text-slate-400 font-sans">10〜99</span>
+                        </button>
+                        <button type="button" onclick="app.setDigits(3)" id="digit-3" class="digit-btn py-3.5 rounded-xl border-2 font-mono font-bold transition-all flex flex-col items-center">
+                            <span class="text-lg">3桁</span>
+                            <span class="text-[10px] text-slate-400 font-sans">100〜999</span>
+                        </button>
+                        <button type="button" onclick="app.setDigits(4)" id="digit-4" class="digit-btn py-3.5 rounded-xl border-2 font-mono font-bold transition-all flex flex-col items-center">
+                            <span class="text-lg">4桁</span>
+                            <span class="text-[10px] text-slate-400 font-sans">1000〜</span>
+                        </button>
+                    </div>
+
+                    <!-- Multiplication large number warning/helper -->
+                    <div id="mul-warning" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-300 flex items-center justify-between gap-2">
+                        <span><i class="fa-solid fa-triangle-exclamation mr-1"></i>掛け算で桁数や口数が多いと答えが巨大になります。</span>
+                        <button onclick="app.applyRecommendedMul()" class="underline font-bold shrink-0 hover:text-white">おすすめ設定に調整</button>
+                    </div>
+                </div>
+
+                <!-- 3. 口数（問題数）の設定 -->
+                <div class="bg-board-card border border-board-border rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label for="slider-count" class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-emerald-400"></i>
+                            口数（数字が出る回数）
+                        </label>
+                        <div class="font-mono font-extrabold text-xl text-emerald-400">
+                            <span id="label-count">5</span><span class="text-xs text-slate-400 ml-1">口</span>
+                        </div>
+                    </div>
+
+                    <input id="slider-count" type="range" min="2" max="20" step="1" value="5"
+                        oninput="app.setCount(this.value)" class="w-full">
+
+                    <!-- Presets for Count -->
+                    <div class="flex flex-wrap items-center justify-between gap-1.5 pt-1">
+                        <span class="text-xs text-slate-400 mr-1">プリセット:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="app.setCount(2)" class="count-preset px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">2口</button>
+                            <button type="button" onclick="app.setCount(3)" class="count-preset px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">3口</button>
+                            <button type="button" onclick="app.setCount(5)" class="count-preset px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">5口</button>
+                            <button type="button" onclick="app.setCount(10)" class="count-preset px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">10口</button>
+                            <button type="button" onclick="app.setCount(15)" class="count-preset px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">15口</button>
+                            <button type="button" onclick="app.setCount(20)" class="count-preset px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">20口</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. 表示速度（間隔）の設定 -->
+                <div class="bg-board-card border border-board-border rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label for="slider-speed" class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-gauge-high text-emerald-400"></i>
+                            表示速度（間隔）
+                        </label>
+                        <div class="font-mono font-extrabold text-xl text-emerald-400">
+                            <span id="label-speed">0.8</span><span class="text-xs text-slate-400 ml-1">秒 / 口</span>
+                        </div>
+                    </div>
+
+                    <input id="slider-speed" type="range" min="0.2" max="2.0" step="0.1" value="0.8"
+                        oninput="app.setSpeed(this.value)" class="w-full">
+
+                    <!-- Presets for Speed -->
+                    <div class="grid grid-cols-4 gap-1.5 pt-1">
+                        <button type="button" onclick="app.setSpeed(1.2)" class="speed-preset py-1.5 px-2 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex flex-col items-center">
+                            <span class="font-bold text-slate-200">ゆっくり</span>
+                            <span class="font-mono text-[10px] text-slate-400">1.2秒</span>
+                        </button>
+                        <button type="button" onclick="app.setSpeed(0.8)" class="speed-preset py-1.5 px-2 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex flex-col items-center">
+                            <span class="font-bold text-slate-200">ふつう</span>
+                            <span class="font-mono text-[10px] text-slate-400">0.8秒</span>
+                        </button>
+                        <button type="button" onclick="app.setSpeed(0.5)" class="speed-preset py-1.5 px-2 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex flex-col items-center">
+                            <span class="font-bold text-slate-200">はやい</span>
+                            <span class="font-mono text-[10px] text-slate-400">0.5秒</span>
+                        </button>
+                        <button type="button" onclick="app.setSpeed(0.3)" class="speed-preset py-1.5 px-2 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex flex-col items-center">
+                            <span class="font-bold text-emerald-400">超高速</span>
+                            <span class="font-mono text-[10px] text-slate-400">0.3秒</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Start Big CTA Button for Mobile & Desktop -->
+            <div class="pt-2">
+                <button onclick="app.startGame()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-lg tracking-wide shadow-xl shadow-emerald-500/20 transition-all transform active:scale-[0.99] flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-bolt text-xl"></i>
+                    <span>フラッシュ暗算を開始する</span>
+                </button>
+            </div>
+        </section>
+
+
+        <!-- ==========================================
+             2. FLASH PLAY SCREEN (フラッシュ表示画面)
+        =========================================== -->
+        <section id="screen-play" class="hidden w-full flex-col items-center justify-center space-y-5">
+            
+            <!-- Status Top Bar inside Play Screen -->
+            <div class="w-full flex items-center justify-between px-2">
+                <div class="flex items-center gap-2">
+                    <span id="play-mode-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        足し算モード
+                    </span>
+                    <span id="play-config-badge" class="text-xs font-mono text-slate-400">
+                        2桁 / 0.8s
+                    </span>
+                </div>
+
+                <!-- Step Progress Counter -->
+                <div class="flex items-center gap-2 font-mono text-sm">
+                    <span class="text-slate-400 text-xs">進行:</span>
+                    <span id="play-step-current" class="text-emerald-400 font-bold text-base">0</span>
+                    <span class="text-slate-600">/</span>
+                    <span id="play-step-total" class="text-slate-400">5</span>
+                </div>
+            </div>
+
+            <!-- Subtle Progress Bar -->
+            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div id="play-progress-bar" class="h-full bg-emerald-500 transition-all duration-150 w-0"></div>
+            </div>
+
+            <!-- Main Digital Flash Board -->
+            <div class="digital-screen w-full h-72 sm:h-96 rounded-3xl border-2 border-slate-800 flex flex-col items-center justify-center relative overflow-hidden px-4">
+                
+                <!-- Subtle Corner Guides for Eye Focus -->
+                <div class="absolute top-5 left-5 w-4 h-4 border-t-2 border-l-2 border-slate-700/70"></div>
+                <div class="absolute top-5 right-5 w-4 h-4 border-t-2 border-r-2 border-slate-700/70"></div>
+                <div class="absolute bottom-5 left-5 w-4 h-4 border-b-2 border-l-2 border-slate-700/70"></div>
+                <div class="absolute bottom-5 right-5 w-4 h-4 border-b-2 border-r-2 border-slate-700/70"></div>
+
+                <!-- Countdown / Number Display Container -->
+                <div id="flash-display" class="font-mono font-extrabold select-none flex items-baseline justify-center tracking-tight">
+                    <!-- Dynamic content injected via JS -->
+                </div>
+
+                <!-- Sub-label during countdown -->
+                <div id="flash-sublabel" class="mt-3 text-xs sm:text-sm font-medium text-slate-400 tracking-widest uppercase">
+                    READY
+                </div>
+            </div>
+
+            <!-- Cancel / Abort Button -->
+            <div>
+                <button onclick="app.abortGame()" class="px-5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-medium border border-slate-700/70 transition flex items-center gap-2">
+                    <i class="fa-solid fa-xmark"></i> 中断して設定へ戻る (Esc)
+                </button>
+            </div>
+        </section>
+
+
+        <!-- ==========================================
+             3. ANSWER & RESULT SCREEN (解答・結果画面)
+        =========================================== -->
+        <section id="screen-answer" class="hidden w-full max-w-xl mx-auto space-y-5">
+
+            <!-- Answer Input Panel (Visible while waiting for user submission) -->
+            <div id="panel-input" class="bg-board-card border border-board-border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-base sm:text-lg font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square text-emerald-400"></i>
+                        答えを入力してください
+                    </h2>
+                    <span id="answer-mode-tag" class="text-xs font-mono px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300">
+                        足し算 / 2桁 / 5口
+                    </span>
+                </div>
+
+                <!-- Digital Answer Display Box -->
+                <div class="digital-screen rounded-2xl border-2 border-emerald-500/40 px-4 py-4 flex items-center justify-between">
+                    <span class="text-xs font-mono uppercase text-emerald-400/80">ANSWER =</span>
+                    <div id="answer-value-display" class="font-mono font-extrabold text-3xl sm:text-4xl text-white tracking-wider min-h-[2.5rem] flex items-center">
+                        <span class="text-slate-600 animate-pulse">_</span>
+                    </div>
+                </div>
+
+                <!-- Responsive Ten-Key Pad -->
+                <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
+                    <button type="button" onclick="app.appendDigit('7')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">7</button>
+                    <button type="button" onclick="app.appendDigit('8')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">8</button>
+                    <button type="button" onclick="app.appendDigit('9')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">9</button>
+
+                    <button type="button" onclick="app.appendDigit('4')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">4</button>
+                    <button type="button" onclick="app.appendDigit('5')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">5</button>
+                    <button type="button" onclick="app.appendDigit('6')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">6</button>
+
+                    <button type="button" onclick="app.appendDigit('1')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">1</button>
+                    <button type="button" onclick="app.appendDigit('2')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">2</button>
+                    <button type="button" onclick="app.appendDigit('3')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">3</button>
+
+                    <button type="button" onclick="app.clearInput()" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-700/50 font-sans text-sm font-bold text-rose-300 shadow flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-trash-can"></i> クリア
+                    </button>
+                    <button type="button" onclick="app.appendDigit('0')" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-mono text-2xl font-bold text-white shadow">0</button>
+                    <button type="button" onclick="app.backspaceInput()" class="keypad-btn py-3.5 sm:py-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 font-sans text-base font-bold text-slate-300 shadow flex items-center justify-center">
+                        <i class="fa-solid fa-delete-left text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Submit Answer Button -->
+                <button type="button" onclick="app.submitAnswer()" class="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-lg shadow-lg shadow-emerald-500/25 transition transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-check-double"></i>
+                    <span>解答する (Enter)</span>
+                </button>
+            </div>
+
+            <!-- Result & Formula Review Panel (Visible after submission) -->
+            <div id="panel-result" class="hidden bg-board-card border border-board-border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-6">
+                
+                <!-- Result Banner -->
+                <div id="result-banner" class="rounded-2xl p-5 flex items-center gap-4 border">
+                    <div id="result-icon-box" class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0">
+                        <i id="result-icon" class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <div id="result-title" class="text-2xl font-extrabold tracking-tight">正解！</div>
+                        <div id="result-subtitle" class="text-xs sm:text-sm text-slate-300 mt-0.5">素晴らしい集中力です！</div>
+                    </div>
+                </div>
+
+                <!-- Comparison Cards (Correct Answer vs User Answer) -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-center">
+                        <div class="text-xs text-slate-400 mb-1">正解</div>
+                        <div id="result-correct-val" class="font-mono font-extrabold text-2xl sm:text-3xl text-emerald-400 break-all">
+                            125
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-center">
+                        <div class="text-xs text-slate-400 mb-1">あなたの回答</div>
+                        <div id="result-user-val" class="font-mono font-extrabold text-2xl sm:text-3xl text-white break-all">
+                            125
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step-by-step Breakdown & Formula History -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span class="font-semibold flex items-center gap-1.5">
+                            <i class="fa-solid fa-list-ol text-emerald-400"></i> 出現した数字と計算式の振り返り
+                        </span>
+                        <span id="review-summary-meta" class="font-mono">5口</span>
+                    </div>
+                    <div id="result-formula-box" class="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 font-mono text-sm sm:text-base text-slate-200 leading-relaxed max-h-48 overflow-y-auto break-words">
+                        <!-- Formula chips injected here -->
+                    </div>
+                </div>
+
+                <!-- Next Actions -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <button type="button" onclick="app.startGame()" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-base shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>同じ設定でもう一度 (Enter)</span>
+                    </button>
+                    <button type="button" onclick="app.showSettings()" class="w-full py-3.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-base border border-slate-700 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>設定を変える</span>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer Keyboard Shortcuts Info -->
+    <footer class="w-full py-4 text-center text-xs text-slate-500 border-t border-slate-900">
+        <div class="max-w-4xl mx-auto px-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
+            <span><kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[11px] font-mono">0-9</kbd> 数字入力</span>
+            <span><kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[11px] font-mono">BackSpace</kbd> 1文字消去</span>
+            <span><kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[11px] font-mono">Enter</kbd> 開始 / 決定 / リトライ</span>
+            <span><kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[11px] font-mono">Esc</kbd> 中断・設定画面へ</span>
+        </div>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        /**
+         * Sound Synthesizer using Web Audio API
+         * Generates crisp countdown ticks, flash blips, and result chimes without external files.
+         */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(freq, type = 'sine', duration = 0.08, gainVal = 0.15) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(gainVal, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + duration);
+                } catch (e) {
+                    // Ignore audio errors on restricted devices
+                }
+            }
+
+            countdownTick() {
+                this.playTone(520, 'triangle', 0.09, 0.14);
+            }
+
+            countdownStart() {
+                this.playTone(880, 'sine', 0.16, 0.18);
+            }
+
+            flashBlip(index) {
+                // Slightly alternate pitch so consecutive identical numbers are audibly distinct too
+                const freq = index % 2 === 0 ? 1046.5 : 1174.66;
+                this.playTone(freq, 'sine', 0.065, 0.14);
+            }
+
+            keyTap() {
+                this.playTone(660, 'sine', 0.04, 0.07);
+            }
+
+            correct() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => {
+                        this.playTone(freq, 'triangle', 0.18, 0.18);
+                    }, idx * 80);
+                });
+            }
+
+            wrong() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const notes = [311.13, 277.18]; // D#4, C#4
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => {
+                        this.playTone(freq, 'sawtooth', 0.22, 0.12);
+                    }, idx * 140);
+                });
+            }
+        }
+
+        /**
+         * Main Flash Mental Math Application Controller
+         */
+        class FlashMathApp {
+            constructor() {
+                this.sound = new SoundEngine();
+
+                // User Configurable State
+                this.config = {
+                    mode: 'add',     // 'add' | 'mul' | 'addsub'
+                    digits: 2,       // 1 | 2 | 3 | 4
+                    count: 5,        // 2 to 20
+                    speed: 0.8       // 0.2 to 2.0 seconds
+                };
+
+                // Session Statistics
+                this.stats = {
+                    streak: 0,
+                    totalPlayed: 0,
+                    totalCorrect: 0
+                };
+
+                // Active Game State
+                this.state = 'SETTINGS'; // 'SETTINGS' | 'PLAYING' | 'INPUT' | 'RESULT'
+                this.sequence = [];      // Array of numbers (positive or negative for addsub)
+                this.expectedAnswer = 0;
+                this.userInput = '';
+                this.timers = [];
+
+                this.initUI();
+                this.bindKeyboard();
+            }
+
+            initUI() {
+                this.updateSettingsUI();
+                this.updateStatsUI();
+            }
+
+            clearAllTimers() {
+                this.timers.forEach(t => clearTimeout(t));
+                this.timers = [];
+            }
+
+            toggleSound() {
+                this.sound.enabled = !this.sound.enabled;
+                const icon = document.getElementById('icon-sound');
+                const btn = document.getElementById('btn-sound');
+                if (this.sound.enabled) {
+                    icon.className = 'fa-solid fa-volume-high';
+                    btn.classList.replace('text-slate-500', 'text-emerald-400');
+                    this.sound.keyTap();
+                } else {
+                    icon.className = 'fa-solid fa-volume-xmark';
+                    btn.classList.replace('text-emerald-400', 'text-slate-500');
+                }
+            }
+
+            // ==========================================
+            // Configuration Setters & UI Updaters
+            // ==========================================
+            setMode(mode) {
+                this.sound.keyTap();
+                this.config.mode = mode;
+                this.updateSettingsUI();
+            }
+
+            setDigits(digits) {
+                this.sound.keyTap();
+                this.config.digits = parseInt(digits, 10);
+                this.updateSettingsUI();
+            }
+
+            setCount(count) {
+                this.config.count = Math.max(2, Math.min(20, parseInt(count, 10)));
+                document.getElementById('slider-count').value = this.config.count;
+                this.updateSettingsUI();
+            }
+
+            setSpeed(speed) {
+                const parsed = Math.max(0.2, Math.min(2.0, parseFloat(speed)));
+                this.config.speed = Math.round(parsed * 10) / 10;
+                document.getElementById('slider-speed').value = this.config.speed;
+                this.updateSettingsUI();
+            }
+
+            applyRecommendedMul() {
+                this.sound.keyTap();
+                this.config.digits = 1;
+                this.config.count = 3;
+                document.getElementById('slider-count').value = 3;
+                this.updateSettingsUI();
+            }
+
+            updateSettingsUI() {
+                const { mode, digits, count, speed } = this.config;
+
+                // Mode Buttons Highlight
+                const modes = ['add', 'mul', 'addsub'];
+                modes.forEach(m => {
+                    const btn = document.getElementById(`mode-${m}`);
+                    if (m === mode) {
+                        btn.className = 'mode-btn flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-500/15 text-white shadow-md shadow-emerald-500/10 transition-all';
+                    } else {
+                        btn.className = 'mode-btn flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-slate-200 transition-all';
+                    }
+                });
+
+                // Digits Buttons Highlight
+                for (let d = 1; d <= 4; d++) {
+                    const btn = document.getElementById(`digit-${d}`);
+                    if (d === digits) {
+                        btn.className = 'digit-btn py-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-500/15 text-white font-mono font-bold shadow-md shadow-emerald-500/10 transition-all flex flex-col items-center';
+                    } else {
+                        btn.className = 'digit-btn py-3.5 rounded-xl border-2 border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-slate-200 font-mono font-bold transition-all flex flex-col items-center';
+                    }
+                }
+
+                // Digits range description
+                const ranges = {
+                    1: '1 〜 9 の数字',
+                    2: '10 〜 99 の数字',
+                    3: '100 〜 999 の数字',
+                    4: '1000 〜 9999 の数字'
+                };
+                document.getElementById('digits-hint').textContent = ranges[digits];
+
+                // Multiplication Warning Check
+                const mulWarn = document.getElementById('mul-warning');
+                if (mode === 'mul' && (digits >= 3 || (digits === 2 && count > 4) || (digits === 1 && count > 6))) {
+                    mulWarn.classList.remove('hidden');
+                } else {
+                    mulWarn.classList.add('hidden');
+                }
+
+                // Labels for Count & Speed
+                document.getElementById('label-count').textContent = count;
+                document.getElementById('label-speed').textContent = speed.toFixed(1);
+
+                // Summary Banner
+                const modeNames = {
+                    add: '足し算',
+                    mul: '掛け算',
+                    addsub: '加減算'
+                };
+                document.getElementById('summary-text').textContent =
+                    `${modeNames[mode]} / ${digits}桁 / ${count}口 / ${speed.toFixed(1)}秒間隔`;
+
+                const totalTime = (count * speed).toFixed(1);
+                let advice = `合計表示時間: 約 ${totalTime} 秒。`;
+                if (mode === 'mul') {
+                    advice += ' 先頭以外の数字には「×」記号が添えられます。';
+                } else if (mode === 'addsub') {
+                    advice += ' 引き算はマイナス記号付きで色分け表示されます（途中経過は常に0以上）。';
+                } else {
+                    advice += ' 集中して画面中央を見つめてください。';
+                }
+                document.getElementById('mode-advice').textContent = advice;
+            }
+
+            updateStatsUI() {
+                document.getElementById('stat-streak').textContent = this.stats.streak;
+                document.getElementById('stat-fraction').textContent = `(${this.stats.totalCorrect}/${this.stats.totalPlayed})`;
+                if (this.stats.totalPlayed === 0) {
+                    document.getElementById('stat-accuracy').textContent = '--%';
+                } else {
+                    const rate = Math.round((this.stats.totalCorrect / this.stats.totalPlayed) * 100);
+                    document.getElementById('stat-accuracy').textContent = `${rate}%`;
+                }
+            }
+
+            // ==========================================
+            // Problem Generation Logic
+            // ==========================================
+            generateRandomByDigits(digits, mode, index) {
+                const min = Math.pow(10, digits - 1);
+                const max = Math.pow(10, digits) - 1;
+
+                // In 1-digit multiplication, avoid 1 so every step is meaningful (use 2..9)
+                if (mode === 'mul' && digits === 1) {
+                    return Math.floor(Math.random() * 8) + 2; // 2..9
+                }
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+
+            generateProblem() {
+                const { mode, digits, count } = this.config;
+                const seq = [];
+                let runningResult = 0;
+
+                for (let i = 0; i < count; i++) {
+                    let num = this.generateRandomByDigits(digits, mode, i);
+
+                    // Prevent identical consecutive absolute numbers where possible to keep it engaging
+                    if (i > 0) {
+                        let guard = 0;
+                        while (Math.abs(seq[i - 1]) === num && guard < 10) {
+                            num = this.generateRandomByDigits(digits, mode, i);
+                            guard++;
+                        }
+                    }
+
+                    if (mode === 'add') {
+                        seq.push(num);
+                        runningResult += num;
+                    } else if (mode === 'mul') {
+                        seq.push(num);
+                        runningResult = (i === 0) ? num : runningResult * num;
+                    } else if (mode === 'addsub') {
+                        if (i === 0) {
+                            seq.push(num);
+                            runningResult = num;
+                        } else {
+                            // Decide whether to subtract (~45% chance if runningResult allows non-negative result)
+                            const minVal = Math.pow(10, digits - 1);
+                            const canSubtract = runningResult > minVal;
+                            const wantSubtract = canSubtract && Math.random() < 0.45;
+
+                            if (wantSubtract) {
+                                const maxSub = Math.min(Math.pow(10, digits) - 1, runningResult);
+                                let subVal = Math.floor(Math.random() * (maxSub - minVal + 1)) + minVal;
+                                seq.push(-subVal);
+                                runningResult -= subVal;
+                            } else {
+                                seq.push(num);
+                                runningResult += num;
+                            }
+                        }
+                    }
+                }
+
+                this.sequence = seq;
+                this.expectedAnswer = runningResult;
+            }
+
+            // ==========================================
+            // Screen Transitions & Flash Sequence
+            // ==========================================
+            showScreen(screenId) {
+                const screens = ['screen-settings', 'screen-play', 'screen-answer'];
+                screens.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (id === screenId) {
+                        el.classList.remove('hidden');
+                        if (id === 'screen-play') el.classList.add('flex');
+                    } else {
+                        el.classList.add('hidden');
+                        if (id === 'screen-play') el.classList.remove('flex');
+                    }
+                });
+            }
+
+            showSettings() {
+                this.clearAllTimers();
+                this.state = 'SETTINGS';
+                this.showScreen('screen-settings');
+            }
+
+            abortGame() {
+                this.sound.keyTap();
+                this.showSettings();
+            }
+
+            startGame() {
+                this.clearAllTimers();
+                this.generateProblem();
+                this.state = 'PLAYING';
+                this.showScreen('screen-play');
+
+                const { mode, digits, count, speed } = this.config;
+                const modeLabels = {
+                    add: '＋ 足し算モード',
+                    mul: '× 掛け算モード',
+                    addsub: '± 加減算モード'
+                };
+
+                const badge = document.getElementById('play-mode-badge');
+                badge.textContent = modeLabels[mode];
+                badge.className = mode === 'mul'
+                    ? 'px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : mode === 'addsub'
+                        ? 'px-3 py-1 rounded-full text-xs font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                        : 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+
+                document.getElementById('play-config-badge').textContent = `${digits}桁 / ${speed.toFixed(1)}s`;
+                document.getElementById('play-step-current').textContent = '0';
+                document.getElementById('play-step-total').textContent = count;
+                document.getElementById('play-progress-bar').style.width = '0%';
+
+                this.runCountdown();
+            }
+
+            runCountdown() {
+                const display = document.getElementById('flash-display');
+                const sublabel = document.getElementById('flash-sublabel');
+
+                const steps = [
+                    { text: '3', sub: 'カウントダウン', delay: 0 },
+                    { text: '2', sub: 'カウントダウン', delay: 650 },
+                    { text: '1', sub: 'スタート！', delay: 1300 }
+                ];
+
+                steps.forEach(step => {
+                    const t = setTimeout(() => {
+                        this.sound.countdownTick();
+                        display.innerHTML = `<span class="text-6xl sm:text-7xl text-amber-400 flash-number-pop">${step.text}</span>`;
+                        sublabel.textContent = step.sub;
+                    }, step.delay);
+                    this.timers.push(t);
+                });
+
+                // Clear before first flash
+                const clearTimer = setTimeout(() => {
+                    display.innerHTML = '';
+                    sublabel.textContent = '';
+                }, 1850);
+                this.timers.push(clearTimer);
+
+                // Start flashing numbers at 2000ms
+                const startFlashTimer = setTimeout(() => {
+                    this.runFlashSequence();
+                }, 2000);
+                this.timers.push(startFlashTimer);
+            }
+
+            runFlashSequence() {
+                const { mode, count, speed } = this.config;
+                const intervalMs = Math.round(speed * 1000);
+                // Blank gap between numbers so repeated digits clearly blink (18% of interval, clamped 45ms..130ms)
+                const blankMs = Math.max(45, Math.min(130, Math.round(intervalMs * 0.18)));
+                const visibleMs = intervalMs - blankMs;
+
+                const display = document.getElementById('flash-display');
+                const sublabel = document.getElementById('flash-sublabel');
+                const stepCurr = document.getElementById('play-step-current');
+                const progBar = document.getElementById('play-progress-bar');
+
+                this.sequence.forEach((val, idx) => {
+                    const showTime = idx * intervalMs;
+                    const hideTime = showTime + visibleMs;
+
+                    // Show Number
+                    const showTimer = setTimeout(() => {
+                        this.sound.flashBlip(idx);
+                        stepCurr.textContent = idx + 1;
+                        progBar.style.width = `${((idx + 1) / count) * 100}%`;
+
+                        // Dynamic font size based on digits
+                        const sizeClass = this.config.digits >= 4
+                            ? 'text-6xl sm:text-8xl'
+                            : 'text-7xl sm:text-9xl';
+
+                        let prefixHtml = '';
+                        let colorClass = 'text-emerald-400';
+
+                        if (mode === 'mul' && idx > 0) {
+                            prefixHtml = `<span class="text-3xl sm:text-5xl text-amber-400 mr-2 font-bold">×</span>`;
+                        } else if (mode === 'addsub' && val < 0) {
+                            prefixHtml = `<span class="text-4xl sm:text-6xl text-rose-400 mr-1 font-bold">−</span>`;
+                            colorClass = 'text-rose-400';
+                        }
+
+                        const absVal = Math.abs(val);
+                        display.innerHTML = `
+                            <div class="flash-number flash-number-pop flex items-baseline justify-center ${colorClass}">
+                                ${prefixHtml}
+                                <span class="${sizeClass} tracking-tight">${absVal}</span>
+                            </div>
+                        `;
+                        sublabel.textContent = `${idx + 1} / ${count}`;
+                    }, showTime);
+
+                    // Blank Off Moment between flashes
+                    const hideTimer = setTimeout(() => {
+                        display.innerHTML = '';
+                    }, hideTime);
+
+                    this.timers.push(showTimer, hideTimer);
+                });
+
+                // Transition to Answer Input screen after all numbers finish
+                const finishTime = count * intervalMs + 150;
+                const finishTimer = setTimeout(() => {
+                    this.openAnswerScreen();
+                }, finishTime);
+                this.timers.push(finishTimer);
+            }
+
+            // ==========================================
+            // Answer Input & Validation
+            // ==========================================
+            openAnswerScreen() {
+                this.state = 'INPUT';
+                this.userInput = '';
+                this.showScreen('screen-answer');
+
+                document.getElementById('panel-input').classList.remove('hidden');
+                document.getElementById('panel-result').classList.add('hidden');
+
+                const modeNames = { add: '足し算', mul: '掛け算', addsub: '加減算' };
+                document.getElementById('answer-mode-tag').textContent =
+                    `${modeNames[this.config.mode]} / ${this.config.digits}桁 / ${this.config.count}口`;
+
+                this.renderUserInput();
+            }
+
+            appendDigit(digit) {
+                if (this.state !== 'INPUT') return;
+                if (this.userInput.length >= 15) return; // Cap max length
+                this.sound.keyTap();
+                if (this.userInput === '0') {
+                    this.userInput = digit;
+                } else {
+                    this.userInput += digit;
+                }
+                this.renderUserInput();
+            }
+
+            backspaceInput() {
+                if (this.state !== 'INPUT') return;
+                this.sound.keyTap();
+                this.userInput = this.userInput.slice(0, -1);
+                this.renderUserInput();
+            }
+
+            clearInput() {
+                if (this.state !== 'INPUT') return;
+                this.sound.keyTap();
+                this.userInput = '';
+                this.renderUserInput();
+            }
+
+            renderUserInput() {
+                const box = document.getElementById('answer-value-display');
+                if (this.userInput === '') {
+                    box.innerHTML = `<span class="text-slate-600 animate-pulse">_</span>`;
+                } else {
+                    const formatted = Number(this.userInput).toLocaleString('ja-JP');
+                    box.textContent = formatted;
+                }
+            }
+
+            submitAnswer() {
+                if (this.state !== 'INPUT') return;
+                if (this.userInput === '') return; // Do not submit empty input
+
+                this.state = 'RESULT';
+                const userNum = parseInt(this.userInput, 10);
+                const isCorrect = userNum === this.expectedAnswer;
+
+                // Update Stats
+                this.stats.totalPlayed++;
+                if (isCorrect) {
+                    this.stats.totalCorrect++;
+                    this.stats.streak++;
+                    this.sound.correct();
+                } else {
+                    this.stats.streak = 0;
+                    this.sound.wrong();
+                }
+                this.updateStatsUI();
+
+                // Toggle Panels
+                document.getElementById('panel-input').classList.add('hidden');
+                const resultPanel = document.getElementById('panel-result');
+                resultPanel.classList.remove('hidden');
+
+                // Populate Result Banner
+                const banner = document.getElementById('result-banner');
+                const iconBox = document.getElementById('result-icon-box');
+                const icon = document.getElementById('result-icon');
+                const title = document.getElementById('result-title');
+                const subtitle = document.getElementById('result-subtitle');
+                const userValEl = document.getElementById('result-user-val');
+
+                if (isCorrect) {
+                    banner.className = 'rounded-2xl p-5 flex items-center gap-4 border bg-emerald-500/15 border-emerald-500/40';
+                    iconBox.className = 'w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 bg-emerald-500 text-slate-950';
+                    icon.className = 'fa-solid fa-trophy';
+                    title.textContent = '正解！ GREAT!';
+                    title.className = 'text-2xl font-extrabold tracking-tight text-emerald-400';
+                    subtitle.textContent = `${this.stats.streak}回連続正解中！この調子で続けましょう。`;
+                    userValEl.className = 'font-mono font-extrabold text-2xl sm:text-3xl text-emerald-400 break-all';
+                } else {
+                    banner.className = 'rounded-2xl p-5 flex items-center gap-4 border bg-rose-500/15 border-rose-500/40';
+                    iconBox.className = 'w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 bg-rose-500 text-white';
+                    icon.className = 'fa-solid fa-xmark';
+                    title.textContent = 'おしい！ 不正解';
+                    title.className = 'text-2xl font-extrabold tracking-tight text-rose-400';
+                    const diff = Math.abs(this.expectedAnswer - userNum);
+                    subtitle.textContent = `正解との差は ${diff.toLocaleString('ja-JP')} でした。下の計算履歴で確認しましょう。`;
+                    userValEl.className = 'font-mono font-extrabold text-2xl sm:text-3xl text-rose-400 break-all';
+                }
+
+                document.getElementById('result-correct-val').textContent = this.expectedAnswer.toLocaleString('ja-JP');
+                userValEl.textContent = userNum.toLocaleString('ja-JP');
+
+                // Build Formula Breakdown
+                this.renderFormulaBreakdown();
+            }
+
+            renderFormulaBreakdown() {
+                const { mode, count, speed } = this.config;
+                document.getElementById('review-summary-meta').textContent = `${count}口 / ${speed.toFixed(1)}秒間隔`;
+
+                const parts = this.sequence.map((val, idx) => {
+                    if (idx === 0) {
+                        return `<span class="px-2 py-0.5 rounded bg-slate-800 text-white font-bold">${val}</span>`;
+                    }
+                    if (mode === 'mul') {
+                        return `<span class="text-amber-400 mx-1">×</span><span class="px-2 py-0.5 rounded bg-slate-800 text-white font-bold">${val}</span>`;
+                    }
+                    if (val < 0) {
+                        return `<span class="text-rose-400 mx-1">−</span><span class="px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-800/50 font-bold">${Math.abs(val)}</span>`;
+                    }
+                    return `<span class="text-emerald-400 mx-1">+</span><span class="px-2 py-0.5 rounded bg-slate-800 text-white font-bold">${val}</span>`;
+                });
+
+                const formulaHtml = `
+                    <div class="flex flex-wrap items-center gap-y-2 leading-loose">
+                        ${parts.join('')}
+                        <span class="text-slate-400 mx-2">=</span>
+                        <span class="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-extrabold">
+                            ${this.expectedAnswer.toLocaleString('ja-JP')}
+                        </span>
+                    </div>
+                `;
+                document.getElementById('result-formula-box').innerHTML = formulaHtml;
+            }
+
+            // ==========================================
+            // Keyboard Support for PC & External Keypads
+            // ==========================================
+            bindKeyboard() {
+                window.addEventListener('keydown', (e) => {
+                    // Ignore when modifier keys are pressed
+                    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                    if (this.state === 'SETTINGS') {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            this.startGame();
+                        }
+                    } else if (this.state === 'PLAYING') {
+                        if (e.key === 'Escape') {
+                            e.preventDefault();
+                            this.abortGame();
+                        }
+                    } else if (this.state === 'INPUT') {
+                        if (e.key >= '0' && e.key <= '9') {
+                            e.preventDefault();
+                            this.appendDigit(e.key);
+                        } else if (e.key === 'Backspace') {
+                            e.preventDefault();
+                            this.backspaceInput();
+                        } else if (e.key === 'Delete' || e.key === 'c' || e.key === 'C') {
+                            e.preventDefault();
+                            this.clearInput();
+                        } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.submitAnswer();
+                        } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            this.showSettings();
+                        }
+                    } else if (this.state === 'RESULT') {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            this.startGame();
+                        } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            this.showSettings();
+                        }
+                    }
+                });
+            }
+        }
+
+        // Initialize Application on Load
+        let app;
+        window.onload = function () {
+            app = new FlashMathApp();
+        };
+    </script>
+</body>
+</html>
